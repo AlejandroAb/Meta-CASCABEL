@@ -21,6 +21,7 @@ bin_sanity_low_completion = snakemake.config["binsanity"]["low_completion"]
 
 #output_dir+file
 #metabat
+#if snakemake.config["das"]["metabat"]=="T" else NULL
 for file in os.listdir(output_dir_metabat):
     if file.endswith(file_extension_metabat):
         #i = i+1
@@ -29,30 +30,45 @@ for file in os.listdir(output_dir_metabat):
         number = splittedName[1]
         fullFile=output_dir_metabat+"/"+file
         os.system("cat "+ fullFile + " | grep '^>' | sed 's/>//g' | awk '{print $1\"\\tmetabat."+number+"\"}' >> " +snakemake.output["metabat_out"])
+
+
 #maxbin
-for file in os.listdir(output_dir_maxbin):
-    if file.endswith(file_extension_maxbin):
-        #i = i+1
-        #print("\033[93mAnnotating\033[0m \033[92m" + file  + "\033[0m \033[93m file \033[0m \033[92m" + str(i) + "/" + str(count) + "\033[0m")
-        splittedName = file.split(".") #the name is bin.##.extension
-        number = splittedName[1]
-        fullFile=output_dir_maxbin+"/"+file
-        os.system("cat "+ fullFile + " | grep '^>' | sed 's/>//g' | awk '{print $1\"\\tmaxbin."+number+"\"}' >> " +snakemake.output["maxbin_out"])
+if snakemake.config["das"]["binsanity"]=="T":
+    for file in os.listdir(output_dir_maxbin):
+        if file.endswith(file_extension_maxbin):
+            #i = i+1
+            #print("\033[93mAnnotating\033[0m \033[92m" + file  + "\033[0m \033[93m file \033[0m \033[92m" + str(i) + "/" + str(count) + "\033[0m")
+            splittedName = file.split(".") #the name is bin.##.extension
+            number = splittedName[1]
+            fullFile=output_dir_maxbin+"/"+file
+            os.system("cat "+ fullFile + " | grep '^>' | sed 's/>//g' | awk '{print $1\"\\tmaxbin."+number+"\"}' >> " +snakemake.output["maxbin_out"])
+else:
+    os.system("touch " +snakemake.output["maxbin_out"])
 #BinSanity
-for file in os.listdir(output_dir_binsanity):
-    if file.endswith(file_extension_binsanity) and (file.startswith("final") or (bin_sanity_low_completion == "T" and file.startswith("low_"))):
-        name = "l" if file.startswith("low_") else "f"
-        splittedName = re.split('\.|_|-',file)
-        if name.startswith("f") and "refined" in file:
-            number = splittedName[-2]
-            number1 = splittedName[2]
-            name+="."+number1+"."+number
-        else:
-            number = splittedName[-2] #name is low_completion-refined_17.fna or final_Bin-1670.fna  final_Bin-1670-refined_1
-            name+="."+number
+if snakemake.config["das"]["binsanity"]=="T":
+    try:
+        for file in os.listdir(output_dir_binsanity):
+            if file.endswith(file_extension_binsanity) and (file.startswith("final") or (bin_sanity_low_completion == "T" and file.startswith("low_"))):
+                name = "l" if file.startswith("low_") else "f"
+                splittedName = re.split('\.|_|-',file)
+                if name.startswith("f") and "refined" in file:
+                    number = splittedName[-2]
+                    number1 = splittedName[2]
+                    name+="."+number1+"."+number
+                else:
+                    number = splittedName[-2] #name is low_completion-refined_17.fna or final_Bin-1670.fna  final_Bin-1670-refined_1
+                    name+="."+number
 
 
-        fullFile=output_dir_binsanity+"/"+file
-        os.system("cat "+ fullFile + " | grep '^>' | sed 's/>//g' | awk '{print $1\"\\tbinsanity."+name+"\"}' >> " +snakemake.output["binsanity_out"])
+                fullFile=output_dir_binsanity+"/"+file
+                os.system("cat "+ fullFile + " | grep '^>' | sed 's/>//g' | awk '{print $1\"\\tbinsanity."+name+"\"}' >> " +snakemake.output["binsanity_out"])
+    except OSError as e:
+        os.system("touch " +snakemake.output["binsanity_out"])
+else:
+    os.system("touch " +snakemake.output["binsanity_out"])
+
 #CONCOCT
-os.system("cat "+ concoct_clustering + " | awk -F\",\" '{print $1\"\tconcoct.\"$2}'   > " +snakemake.output["concoct_out"])
+if snakemake.config["das"]["binsanity"]=="T":
+    os.system("cat "+ concoct_clustering + " | awk -F\",\" '{print $1\"\tconcoct.\"$2}'   > " +snakemake.output["concoct_out"])
+else: 
+    os.system("touch " +snakemake.output["concoct_out"])

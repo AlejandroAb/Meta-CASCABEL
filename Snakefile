@@ -1,25 +1,26 @@
 """
 Metagenomics Workflow for NIOZ MMBL.
-Version: 2.1
-Author: Julia Engelmann and Alejandro Abdala
-Last update: 24/10/2018
+@Company: NIOZ                 
+@Author: Alejandro Abdala and Julia Engelmann
+@Version: 3.0                                                                
+@Last update: 21/05/2021                
 """
+
 run=config["RUN"]
 rule all:
     input:
         expand("{PROJECT}/runs/{run}/{sample}_data/report_f.html", PROJECT=config["PROJECT"],sample=config["SAMPLES"], run=run)
-#        "{PROJECT}/runs/{run}/{sample}_data/report_f.html"
-        #mapped_against_cross-assembly_sorted.flagstat
+
 if len(config["SAMPLES"])==1 and len(config["fw_reads"])>0 and len(config["rv_reads"])>0:
     rule init_structure:
         input:
             fw = config["fw_reads"],
             rv = config["rv_reads"]
         output:
-            r1="{PROJECT}/samples/{sample}/rawdata/fw.fastq",
-            r2="{PROJECT}/samples/{sample}/rawdata/rv.fastq"
+            r1="{PROJECT}/samples/{sample}/rawdata/fw.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/fw.fastq.gz",
+            r2="{PROJECT}/samples/{sample}/rawdata/rv.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/rv.fastq.gz"
         shell:
-            "./init_sample.sh "+config["PROJECT"]+" "+config["SAMPLES"][0]+"  {input.fw} {input.rv}"
+            "Scripts/init_sample.sh "+config["PROJECT"]+" "+config["SAMPLES"][0]+"  {input.fw} {input.rv}"
 
 
 if config["FastQC"]["onRawReads"] == "T":
@@ -27,8 +28,8 @@ if config["FastQC"]["onRawReads"] == "T":
 #First we run fastQC over the rawdata
     rule fast_qc:
         input:
-            r1="{PROJECT}/samples/{sample}/rawdata/fw.fastq",
-            r2="{PROJECT}/samples/{sample}/rawdata/rv.fastq"
+            r1="{PROJECT}/samples/{sample}/rawdata/fw.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/fw.fastq.gz",
+            r2="{PROJECT}/samples/{sample}/rawdata/rv.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/rv.fastq.gz"
         output:
             o1="{PROJECT}/samples/{sample}/qc/fw_fastqc.html",
             o2="{PROJECT}/samples/{sample}/qc/rv_fastqc.html",
@@ -37,7 +38,7 @@ if config["FastQC"]["onRawReads"] == "T":
         benchmark:
             "{PROJECT}/samples/{sample}/qc/fq.benchmark"
         shell:
-            "fastqc {input.r1} {input.r2} --extract -o {wildcards.PROJECT}/samples/{wildcards.sample}/qc/"
+            "fastqc {input.r1} {input.r2} --extract -t 4 -o {wildcards.PROJECT}/samples/{wildcards.sample}/qc/"
     #validate qc if to many fails on qc report
     rule validateQC:
         input:
@@ -45,8 +46,8 @@ if config["FastQC"]["onRawReads"] == "T":
             "{PROJECT}/samples/{sample}/qc/rv_fastqc/summary.txt",
             "{PROJECT}/samples/{sample}/qc/fw_fastqc.html",
             "{PROJECT}/samples/{sample}/qc/rv_fastqc.html",
-            "{PROJECT}/samples/{sample}/rawdata/fw.fastq",
-            "{PROJECT}/samples/{sample}/rawdata/rv.fastq"
+            "{PROJECT}/samples/{sample}/rawdata/fw.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/fw.fastq.gz",
+            "{PROJECT}/samples/{sample}/rawdata/rv.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/rv.fastq.gz"
         output:
             "{PROJECT}/samples/{sample}/qc/fq_fw_internal_validation.txt",
             "{PROJECT}/samples/{sample}/qc/fq_rv_internal_validation.txt"
@@ -74,47 +75,49 @@ else:
 # ILLUMINACLIP:/usr/local/bioinf/trimmomatic/adapters/TruSeq3-PE-2.fa:2:30:12:2:TRUE MAXINFO:40:0.6 MINLEN:40
 rule trimmomatic:
     input:
-        fw="{PROJECT}/samples/{sample}/rawdata/fw.fastq",
-        rv="{PROJECT}/samples/{sample}/rawdata/rv.fastq",
+        fw="{PROJECT}/samples/{sample}/rawdata/fw.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/fw.fastq.gz",
+        rv="{PROJECT}/samples/{sample}/rawdata/rv.fastq" if config["gzip_input"] == "F" else "{PROJECT}/samples/{sample}/rawdata/rv.fastq.gz",
         tmp1="{PROJECT}/samples/{sample}/qc/fq_fw_internal_validation.txt",
         tmp2="{PROJECT}/samples/{sample}/qc/fq_rv_internal_validation.txt"
     output:
         read1_paired="{PROJECT}/runs/{run}/{sample}_data/trimmed/read1_paired.fq",
         read1_single="{PROJECT}/runs/{run}/{sample}_data/trimmed/read1_singles.fq",
         read2_paired="{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_paired.fq",
-        read2_single="{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_singles.fq"
+        read2_single="{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_singles.fq",
+        log="{PROJECT}/runs/{run}/{sample}_data/trimmed/trimmomatic.log"
     benchmark:
         "{PROJECT}/runs/{run}/{sample}_data/trimmed/trimmomatic.benchmark"
     shell:
-        "java -jar /opt/biolinux/Trinity-v2.6.6/trinity-plugins/Trimmomatic-0.36/trimmomatic-0.36.jar {config[trimm][mode]} -threads {config[trimm][threads]} {input.fw} {input.rv} "
+        "java -jar /opt/biolinux/Trinity/trinity-plugins/Trimmomatic-0.36/trimmomatic-0.36.jar {config[trimm][mode]} -threads {config[trimm][threads]} {input.fw} {input.rv} "
         "{output.read1_paired} {output.read1_single} {output.read2_paired} {output.read2_single} "
         "{config[trimm][clip][type]}:{config[trimm][clip][adapter]}:{config[trimm][clip][seed]}:{config[trimm][clip][palindrome_ct]}:"
         "{config[trimm][clip][simple_ct]}:{config[trimm][clip][minAdpLength]}:{config[trimm][clip][keepBoth]} "
+        "{config[trimm][sliding][type]} "
         "{config[trimm][maxinfo][type]}:{config[trimm][maxinfo][targetLength]}:{config[trimm][maxinfo][strictness]} "
-        "{config[trimm][minlen][type]}:{config[trimm][minlen][len]}"
+        "{config[trimm][minlen][type]}:{config[trimm][minlen][len]} > {output.log} 2>&1"
 if config["FastQC"]["onTrimmedReads"] == "T":
     rule qc_trimmed_reads:
         input:
             r1="{PROJECT}/runs/{run}/{sample}_data/trimmed/read1_paired.fq",
             r2="{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_paired.fq"
         output:
-            o1="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired.fq_fastqc.html",
-            o2="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired.fq_fastqc.html",
-            s1="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired.fq_fastqc/summary.txt",
-            s2="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired.fq_fastqc/summary.txt"
+            o1="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired_fastqc.html",
+            o2="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired_fastqc.html",
+            s1="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired_fastqc/summary.txt",
+            s2="{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired_fastqc/summary.txt"
         params:
             "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/"
         benchmark:
             "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/fq.benchmark"
         shell:
-            "fastqc {input.r1} {input.r2} --extract -o {params}"
+            "fastqc {input.r1} {input.r2} --extract -t 4 -o {params}"
 
     rule validateQCTrimm:
         input:
-            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired.fq_fastqc/summary.txt",
-            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired.fq_fastqc/summary.txt",
-            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired.fq_fastqc.html",
-            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired.fq_fastqc.html",
+            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired_fastqc.html",
+            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired_fastqc.html",
+            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read1_paired_fastqc/summary.txt",
+            "{PROJECT}/runs/{run}/{sample}_data/trimmed/qc/read2_paired_fastqc/summary.txt",
             "{PROJECT}/runs/{run}/{sample}_data/trimmed/read1_paired.fq",
             "{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_paired.fq"
         output:
@@ -149,6 +152,7 @@ if config["TAXONOMY"]["PROFILING"] == "KRAKEN" or config["TAXONOMY"]["PROFILING"
         shell:
             "kraken --preload --db {config[TAXONOMY][KRAKEN][db]} --paired {input.fw} {input.rv} "
             "--threads {config[TAXONOMY][KRAKEN][threads]} {config[TAXONOMY][KRAKEN][extra_params]} > {output}"
+#--gzip-compressed
     rule prepare_kraken_report:
         """
             Prepare the input file for addTaxonNames script
@@ -315,7 +319,7 @@ if config["ASSEMBLER"] == "SPADES":
         shell:
             "cat {input.read1_single} {input.read2_single} > {output}"
 
-    rule meta_spades:
+    rule meta_spades_to_fix:
         input:
             reads_paired="{PROJECT}/runs/{run}/{sample}_data/trimmed/reads_merged.fasta" if config["gzip_input"] == "F"
             else "{PROJECT}/runs/{run}/{sample}_data/trimmed/reads_merged.fastq.gz",
@@ -332,7 +336,7 @@ if config["ASSEMBLER"] == "SPADES":
             "-k {config[spades][kmers]} --12 {input.reads_paired} -s {input.read12_singles} "
             "{config[spades][extra_params]} -o {params}"
 
-    rule meta_spades_old:
+    rule meta_spades:
         input:
             read1_paired="{PROJECT}/runs/{run}/{sample}_data/trimmed/read1_paired.fq",
             read2_paired="{PROJECT}/runs/{run}/{sample}_data/trimmed/read2_paired.fq",
@@ -424,10 +428,30 @@ if config["ASSEMBLER"] == "IDBA":
         shell:
             "mv {input.contig} {output.contigs} && mv {input.scaffold} {output.scaffolds}"
 
+if config["ASSEMBLER"] == "ASSEMBLED":
+    rule std_assembly:
+        input:
+            contigs=config["contigs"]
+        output:
+            contigs="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta",
+            scaffolds="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
+        shell:
+            "ln -s {input.contigs} {output.contigs} && ln -s {input.contigs} {output.scaffolds}"
+
+
+
+rule quast_libs:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta"
+    output:
+        temp("{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/quast_lib_config.txt")
+    shell:
+        "export PYTHONPATH=/opt/Downloads/biolinux/quast-4.6.3/ && touch {output}"
 
 rule quast_contigs:
     input:
         "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta"
+        #"{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/quast_lib_config.txt"
     output:
         "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/contigs/report.txt"
     params:
@@ -435,11 +459,12 @@ rule quast_contigs:
     benchmark:
         "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/contigs/quast_contigs.benchmark"
     shell:
-        "quast.py -t {config[quast][threads]} -o {params} {config[quast][extra_params]} {input}"
+        "quast.py -t {config[quast][threads]} -o {params} {config[quast][extra_params]} {input[0]}"
 
 rule quast_scaffolds:
     input:
         scaffolds="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
+        #tmp_i="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/quast_lib_config.txt"
     output:
         "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/scaffolds/report.txt"
     params:
@@ -447,7 +472,7 @@ rule quast_scaffolds:
     benchmark:
         "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/quast/scaffolds/quast_scaffolds.benchmark"
     shell:
-        "quast.py -t {config[quast][threads]} -o {params} -s {input} --scaffolds {config[quast][extra_params]}"
+        "quast.py -t {config[quast][threads]} -o {params} -s {input.scaffolds} --scaffolds {config[quast][extra_params]}"
 
 
 if config["SPLIT_ASSEMBLY"] == "T":
@@ -638,7 +663,7 @@ if config["BINNING"] == "METABAT" or config["BINNING"] == "DAS":
             "--minS {config[metabat2][min_score]} --maxP {config[metabat2][maxP]} "
             "--maxEdges {config[metabat2][maxEdge]} -s {config[metabat2][min_bin_size]} "
             "{config[metabat2][extra_params]}  > {output}"
-if config["BINNING"] == "MAXBIN" or config["BINNING"] == "DAS":
+if config["BINNING"] == "MAXBIN" or (config["BINNING"] == "DAS" and config["das"]["maxbin"]["run"]=="T" ):
     rule maxbin:
         """
         Please make sure that your abundance information is provided in the following format:
@@ -655,13 +680,21 @@ if config["BINNING"] == "MAXBIN" or config["BINNING"] == "DAS":
         benchmark:
             "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/maxbin.benchmark"
         shell:
-            "/export/data/aabdala/utils/MaxBin-2.2.4/run_MaxBin.pl -contig {input.assembly} "
+            "run_MaxBin.pl -contig {input.assembly} "
             #"run_MaxBin.pl -contig {input.assembly} "
             "-abund  {input.depth} -out {params} -thread {config[maxbin][threads]} "
             "-prob_threshold {config[maxbin][prob_threshold]} -markerset {config[maxbin][markerset]} "
             "-min_contig_length {config[maxbin][min_contig_length]}  "
             "{config[maxbin][plotmarker]} {config[maxbin][extra_params]} > {output.log}"
-if config["BINNING"] == "CONCOCT" or config["BINNING"] == "DAS":
+
+elif config["BINNING"] == "DAS" and config["das"]["maxbin"]["run"]!="T":
+   rule skip_maxbin:
+        output:
+            log="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+        shell:
+            "touch {output}"
+
+if config["BINNING"] == "CONCOCT" or ( config["BINNING"] == "DAS"  and config["das"]["concoct"]["run"]=="T"):
     """
     This rules try to follow the steps recommended by using CONCOCT according to
     the following documentation: https://concoct.readthedocs.io/en/latest/complete_example.html
@@ -681,23 +714,34 @@ if config["BINNING"] == "CONCOCT" or config["BINNING"] == "DAS":
             "--coverage_file {input.depth} --composition_file {input.assembly} -b {params} "
     """
     We only need the bins in case that the user is running concoct alone, otherwise
-    we only use the clustering file to DAS to create new bins
+    we only use the clustering file to DAS to create new bins. NOT anymore! now we run 
+    checkM for all the methods
     """
-    if config["BINNING"] == "CONCOCT":
-        rule extract_concoct_bins:
-            input:
-                assembly="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
-                if config["ANALYSIS"] == "SCAFFOLDS" else "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta",
-                clustering="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/bin_clustering_gt"+config["concoct"]["min_contig_length"]+".csv"
-            output:
-                log="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
-            params:
-                "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/"
-            shell:
-                #"/usr/local/bioinf/concoct-0.4/scripts/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
-                #"/export/data/aabdala/utils/CONCOCT/scripts/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
-                "python /opt/biolinux/anaconda2.2019.07/pkgs/concoct-1.1.0-py27h88e4a8a_0/bin/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
-if config["BINNING"] == "BINSANITY" or config["BINNING"] == "DAS":
+#    if config["BINNING"] == "CONCOCT":
+    rule extract_concoct_bins:
+        input:
+            assembly="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
+            if config["ANALYSIS"] == "SCAFFOLDS" else "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta",
+            clustering="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/bin_clustering_gt"+config["concoct"]["min_contig_length"]+".csv"
+        output:
+            log="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+        params:
+            "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/"
+        shell:
+            #"/usr/local/bioinf/concoct-0.4/scripts/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
+            #"/export/data/aabdala/utils/CONCOCT/scripts/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
+            #"python /opt/biolinux/anaconda2.2019.07/pkgs/concoct-1.1.0-py27h88e4a8a_0/bin/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
+            #"python /export/data01/tools/concoct_scripts/concoct-0.4/extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
+            "extract_fasta_bins.py  --output_path  {params} {input.assembly} {input.clustering} > {output.log}"
+elif config["BINNING"] == "DAS" and config["das"]["concoct"]["run"]!="T":
+   rule skip_concoct:
+        output:
+            log="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log",
+            log2="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/bin_clustering_gt"+config["concoct"]["min_contig_length"]+".csv"
+        shell:
+            "touch {output.log} && touch {output.log2}"
+
+if config["BINNING"] == "BINSANITY" or (config["BINNING"] == "DAS" and config["das"]["binsanity"]["run"]=="T"):
     rule log_transform_coverage:
         input:
             depth="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
@@ -732,9 +776,17 @@ if config["BINNING"] == "BINSANITY" or config["BINNING"] == "DAS":
         output:
             log="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
         shell:
-            "/export/data/aabdala/utils/BInSanity/BinSanity-master/bin/Binsanity-wf -f {params.contig_directory} -l {params.assembly} -c {input.depth} -o {params.bin_directory} --binPrefix  final "
+            "Binsanity-wf -f {params.contig_directory} -l {params.assembly} -c {input.depth} -o {params.bin_directory} --binPrefix  final "
+            #"/export/data/aabdala/utils/BInSanity/BinSanity-master/bin/Binsanity-wf -f {params.contig_directory} -l {params.assembly} -c {input.depth} -o {params.bin_directory} --binPrefix  final "
             "-p {config[binsanity][preference]} -x {config[binsanity][min_contig_length]} --threads {config[binsanity][threads]} "
             "{config[binsanity][extra_params]}"
+elif config["BINNING"] == "DAS" and config["das"]["binsanity"]["run"]!="T":
+   rule skip_bin_sanity:
+        output:
+            log="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+        shell:
+            "touch {output}"
+
 if config["BINNING"] == "DAS":
     rule bins_to_table:
         input:
@@ -742,7 +794,7 @@ if config["BINNING"] == "DAS":
             metabat="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log",
             #concoct="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
             concoct="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/bin_clustering_gt"+config["concoct"]["min_contig_length"]+".csv",
-            binsanity="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+            binsanity="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log" 
         output:
             metabat_out="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv",
             maxbin_out="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv",
@@ -760,7 +812,7 @@ if config["BINNING"] == "DAS":
         script:
             "Scripts/tableBins.py"
     rule das:
-        input:
+        input:#https://stackoverflow.com/questions/51362210/snakemake-optional-input-for-rules
             metabat_bin2t="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv",
             maxbin_bin2t="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv",
             concoct_bin2t="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv",
@@ -768,14 +820,26 @@ if config["BINNING"] == "DAS":
             assembly="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
             if config["ANALYSIS"] == "SCAFFOLDS" else "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta"
         params:
-            "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut"
+            das_out_dir="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut",
+            bs_input=",{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv" if config["das"]["binsanity"]["run"]=="T" else "",
+            mx_input=",{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv" if config["das"]["maxbin"]["run"]=="T" else "",
+            cc_input=",{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv" if config["das"]["concoct"]["run"]=="T" else "",
+            bs_l=",binsanity" if config["das"]["binsanity"]["run"]=="T" else "",
+            mx_l=",maxbin"  if config["das"]["maxbin"]["run"]=="T" else "",
+            cc_l=",concoct"  if config["das"]["concoct"]["run"]=="T" else ""
+
         output:
-            "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log"
+            log="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
+            t2bin="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_scaffolds2bin.txt"
         shell:
-            "DAS_Tool -i {input.metabat_bin2t},{input.maxbin_bin2t},{input.concoct_bin2t},{input.binsanity_bin2t} "
-            "-l metabat,maxbin,concoct,binsanity -c {input.assembly} -t {config[das][threads]} "
+            #"DAS_Tool -i {input.metabat_bin2t},{input.maxbin_bin2t},{input.concoct_bin2t},{input.binsanity_bin2t} "
+            #"-l metabat,maxbin,concoct,binsanity -c {input.assembly} -t {config[das][threads]} "
+            #"--write_bins 1 --db_directory {config[das][db]} --search_engine {config[das][search_engine]} "
+            #"--create_plots 1 {config[das][extra_params]} -o {params} > {output.log}"
+            "DAS_Tool -i {input.metabat_bin2t}{params.mx_input}{params.cc_input}{params.bs_input} "
+            "-l metabat,{params.mx_l}{params.cc_l}{params.bs_l} -c {input.assembly} -t {config[das][threads]} "
             "--write_bins 1 --db_directory {config[das][db]} --search_engine {config[das][search_engine]} "
-            "--create_plots 1 {config[das][extra_params]} -o {params} > {output}"
+            "--create_plots 1 {config[das][extra_params]} -o {params.das_out_dir} > {output.log}"
 else:
     rule skip_das:
         params:
@@ -785,36 +849,458 @@ else:
         shell:
             "touch {output}"
 
+
+rule checkM_metabat2:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_metabat2/",
+       bin_ext="fa"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_metabat2/summary.txt"
+   shell:
+       "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+
+rule checkM_maxbin:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_maxbin/",
+       bin_ext="fasta"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_maxbin/summary.txt"
+   shell:
+       "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+
+rule checkM_concoct:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_concoct/",
+       bin_ext="fa",
+       res_folder="/export/lv3/scratch/workshop_2021/S12_Pipelines/{sample}/checkM_concoct/"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_concoct/summary.txt"
+   shell:
+       "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+
+rule checkM_binsanity:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_binsanity/",
+       bin_ext="fna"
+         
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_binsanity/summary.txt"
+   shell:
+       "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+
+rule checkM_das:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_metabat2/summary.txt",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_maxbin/summary.txt" if config["das"]["maxbin"]["run"]=="T" and  config["das"]["maxbin"]["checkm_analysis"]=="T"  else "",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_concoct/summary.txt" if config["das"]["concoct"]["run"]=="T" and config["das"]["concoct"]["checkm_analysis"]=="T"  else "",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_binsanity/summary.txt" if config["das"]["binsanity"]["run"]=="T" and config["das"]["binsanity"]["checkm_analysis"]=="T" else ""
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_das/",
+       bin_ext="fa"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_das/summary.txt"
+   shell:
+      "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+
 rule checkM_bins:
     input:
-        "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log"
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_metabat2/summary.txt"
         if config["BINNING"] == "METABAT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_maxbin/summary.txt"
         if config["BINNING"] == "MAXBIN" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_concoct/summary.txt"
         if config["BINNING"] == "CONCOCT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_binsanity/summary.txt"
         if config["BINNING"] == "BINSANITY" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log"
-    params  :
-        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/"
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_das/summary.txt"
+    params:
+        dir="checkM_metabat2"
         if config["BINNING"] == "METABAT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/"
+        "checkM_maxbin"
         if config["BINNING"] == "MAXBIN" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/"
+        "checkM_concoct"
         if config["BINNING"] == "CONCOCT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/"
+        "checkM_binsanity"
         if config["BINNING"] == "BINSANITY" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/",
-        bin_ext="fa"
-        if config["BINNING"] == "METABAT" or config["BINNING"] == "CONCOCT" or config["BINNING"] == "DAS" else
-        "fasta" if config["BINNING"] == "MAXBIN" else "fna",
-        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/checkM/"
+        "checkM_das"
     output:
         out_file="{PROJECT}/runs/{run}/{sample}_data/binning/checkM/summary.txt"
     shell:
-        "checkm lineage_wf -f {output.out_file} -t  {config[checkM][threads]} -x {params.bin_ext} {config[checkM][extra_params]} {params.bin_folder} {params.out_folder} "
+        "ln -s ../{params.dir}/summary.txt {output}"
 
+rule gtdbtk_metabat2:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_metabat2/",
+       bin_ext="fa"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_metabat2/summary.txt"
+   shell:
+       "gtdbtk classify_wf --genome_dir  {params.bin_folder} --out_dir {params.out_folder}  -x {params.bin_ext} --cpus {config[gtdbtk][cpus]} {config[gtdbtk][extra_params]} > {output}"
+
+rule gtdbtk_maxbin:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_maxbin/",
+       bin_ext="fasta"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_maxbin/summary.txt"
+   shell:
+       "gtdbtk classify_wf --genome_dir  {params.bin_folder} --out_dir {params.out_folder}  -x {params.bin_ext} --cpus {config[gtdbtk][cpus]} {config[gtdbtk][extra_params]}  > {output}"
+
+rule gtdbtk_concoct:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_concoct/",
+       bin_ext="fa"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_concoct/summary.txt"
+   shell:
+       "gtdbtk classify_wf --genome_dir  {params.bin_folder} --out_dir {params.out_folder}  -x {params.bin_ext} --cpus {config[gtdbtk][cpus]} {config[gtdbtk][extra_params]}  > {output}"
+
+rule gtdbtk_binsanity:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_binsanity/",
+       bin_ext="fna"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_binsanity/summary.txt"
+   shell:
+       "gtdbtk classify_wf --genome_dir  {params.bin_folder} --out_dir {params.out_folder}  -x {params.bin_ext} --cpus {config[gtdbtk][cpus]} {config[gtdbtk][extra_params]}  > {output} "
+
+rule gtdbtk_das:
+   input:
+       "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_metabat2/summary.txt",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_maxbin/summary.txt" if config["das"]["maxbin"]["run"]=="T" and config["das"]["maxbin"]["gtdbtk_analysis"]=="T" else "",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_concoct/summary.txt" if config["das"]["concoct"]["run"]=="T" and config["das"]["concoct"]["gtdbtk_analysis"]=="T" else "",
+       "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_binsanity/summary.txt" if config["das"]["binsanity"]["run"]=="T" and config["das"]["binsanity"]["gtdbtk_analysis"]=="T"  else ""
+   params:
+       bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/",
+       out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_das/",
+       bin_ext="fa"
+   output:
+       out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_das/summary.txt"
+   shell:
+      "gtdbtk classify_wf --genome_dir  {params.bin_folder} --out_dir {params.out_folder}  -x {params.bin_ext} --cpus {config[gtdbtk][cpus]} {config[gtdbtk][extra_params]} > {output} "
+
+rule gtdbtk_bins:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_metabat2/summary.txt"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_maxbin/summary.txt"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_concoct/summary.txt"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_binsanity/summary.txt"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_das/summary.txt"
+    params:
+        dir="gtdbtk_metabat2"
+        if config["BINNING"] == "METABAT" else
+        "gtdbtk_maxbin"
+        if config["BINNING"] == "MAXBIN" else
+        "gtdbtk_concoct"
+        if config["BINNING"] == "CONCOCT" else
+        "gtdbtk_binsanity"
+        if config["BINNING"] == "BINSANITY" else
+        "gtdbtk_das"
+    output:
+        out_file="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk/summary.txt"
+    shell:
+        "ln -s ../{params.dir}/summary.txt {output}"
+
+
+
+rule summarize_gtdbtk:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_metabat2/summary.txt"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_maxbin/summary.txt"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_concoct/summary.txt"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_binsanity/summary.txt"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_das/summary.txt"
+    params:
+        search_path="{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk_\\*/summary.txt"
+    output:
+        temp("{PROJECT}/runs/{run}/{sample}_data/binning/summary_gtdb.tsv")
+    shell:
+        "Scripts/summary_gtdb.sh {params.search_path}"
+
+rule summarize_checkM:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_metabat2/summary.txt"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_maxbin/summary.txt"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_concoct/summary.txt"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_binsanity/summary.txt"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/checkM_das/summary.txt"
+    params:
+        search_path="{PROJECT}/runs/{run}/{sample}_data/binning/checkM_\\*/summary.txt"
+    output:
+        temp("{PROJECT}/runs/{run}/{sample}_data/binning/summary_checkM.tsv")
+    shell:
+        "Scripts/summary_checkM.sh {params.search_path}"
+
+rule merge_checkM_gtdb_results:
+    input:
+        checkM="{PROJECT}/runs/{run}/{sample}_data/binning/summary_checkM.tsv",
+        gtdb="{PROJECT}/runs/{run}/{sample}_data/binning/summary_gtdb.tsv"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/summary.tsv"
+    shell:
+        "cat {input.gtdb} | "
+        "awk -F\"\\t\" 'BEGIN{{OFS=\"\\t\"}} NR==FNR{{if(NR==1){{ header=\"GTDB_\"$3\"\\tGTDB_\"$4\"\\tGTDB_\"$5\"\\tGTDB_\"$6}} else{{bin[$1$2]=$3\"\\t\"$4\"\\t\"$5\"\\t\"$6}};next}}  BEGIN{{OFS=\"\\t\"}} {{if(FNR==1){{print $0,header}} else{{if(bin[$1$2]){{print $0,bin[$1$2]}}else{{print $0,\"Filtered\",\"-\",\"-\",\"-\"}}}}}}' "
+        "- {input.checkM} > {output}"
+
+rule bin_cvg_metabat2:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.metabat.tsv"
+    shell:
+        "Scripts/summary_coverage_metabat.sh {params.bin_folder} {params.bin_ext} {params.coverage} {output}" 
+
+rule bin_cvg_concoct:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.concoct.tsv" 
+    shell:
+        "Scripts/summary_coverage_concoct.sh {params.bin_folder} {params.bin_ext} {params.coverage} {output}" 
+       
+       
+rule bin_cvg_maxbin:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fasta",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.maxbin.tsv"
+    shell:
+        "Scripts/summary_coverage_maxbin.sh {params.bin_folder} {params.bin_ext} {params.coverage} {output}" 
+ 
+       
+rule bin_cvg_binsanity:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fna",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.binsanity.tsv"
+    shell:
+        "Scripts/summary_coverage_bs.sh {params.bin_folder} {params.bin_ext} {params.coverage} {output}" 
+ 
+
+rule bin_cvg_das:
+     input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.metabat.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.maxbin.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.concoct.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.binsanity.tsv"
+     params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+     output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.das.tsv"
+     shell:
+        "Scripts/summary_coverage_das.sh {params.bin_folder} {params.bin_ext} {params.coverage} {output}" 
+ 
+rule summarize_coverage:
+    input:
+        abundance="{PROJECT}/runs/{run}/{sample}_data/binning/abundance.metabat.tsv"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.maxbin.tsv"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.concoct.tsv"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.binsanity.tsv"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/abundance.das.tsv",
+        summary="{PROJECT}/runs/{run}/{sample}_data/binning/summary.tsv"
+    params:
+        abundance_folder="{PROJECT}/runs/{run}/{sample}_data/binning/"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/summary_abundance.tsv"
+    shell:
+        "cat {params.abundance_folder}abundance*.tsv | grep  -v num_contigs | "
+        "awk -F \"\\t\" 'FNR==NR{{if(NR>1){{h[$1$2]=$3\"\\t\"$4\"\\t\"$5}};next }} BEGIN{{OFS=\"\\t\"}} "
+        "{{if(FNR==1){{print $0,\"num_contigs\",\"total_length\",\"avg_depth\" }}else{{print $0,h[$1$2]}} }}' "
+        " - {input.summary} > {output}"
+        
+rule gc_prc_metabat2:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/metabat.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.metabat.tsv"
+    shell:
+        "Scripts/computeGC.sh {params.bin_folder} {params.bin_ext} {output}"
+
+rule gc_prc_concoct:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/concoct.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.concoct.tsv"
+    shell:
+        "Scripts/computeGC.sh {params.bin_folder} {params.bin_ext}  {output}"
+
+
+rule gc_prc_maxbin:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fasta",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.maxbin.tsv"
+    shell:
+        "Scripts/computeGC.sh {params.bin_folder} {params.bin_ext} {output}"
+
+
+rule gc_prc_binsanity:
+    input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanityWf.log"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fna",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.binsanity.tsv"
+    shell:
+        "Scripts/computeGC.sh {params.bin_folder} {params.bin_ext} {output}"
+rule gc_prc_das:
+     input:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.metabat.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.maxbin.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.concoct.tsv",
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.binsanity.tsv"
+     params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/",
+        out_folder="{PROJECT}/runs/{run}/{sample}_data/binning/",
+        bin_ext="fa",
+        coverage="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+     output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.das.tsv"
+     shell:
+        "Scripts/computeGC.sh {params.bin_folder} {params.bin_ext} {output}"
+
+rule summarize_gc_prc:
+    input:
+        coverage="{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.metabat.tsv"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.maxbin.tsv"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.concoct.tsv"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.binsanity.tsv"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/gc_prc.das.tsv",
+        summary="{PROJECT}/runs/{run}/{sample}_data/binning/summary_abundance.tsv"
+    params:
+        prc_folder="{PROJECT}/runs/{run}/{sample}_data/binning/"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/summary_abundance_coverage.tsv"
+    shell:
+        "cat {params.prc_folder}gc_prc*.tsv |  "
+        "awk -F \"\\t\" 'FNR==NR{{if(NR>1){{h[$1$2]=$3}};next }} BEGIN{{OFS=\"\\t\"}} "
+        "{{if(FNR==1){{print $0,\"avg_gc\" }}else{{print $0,h[$1$2]}} }}' "
+        " - {input.summary} > {output}"
+
+if config["CREATE_UNBINNED"] == "T":
+    rule get_unbinned_contigs:
+        input:
+            bin_table="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+            if config["BINNING"] == "METABAT" else
+            "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+            if config["BINNING"] == "MAXBIN" else
+            "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+            if config["BINNING"] == "CONCOCT" else
+            "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+            if config["BINNING"] == "BINSANITY" else
+            "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_scaffolds2bin.txt",
+            assembly="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
+            if config["ANALYSIS"] == "SCAFFOLDS" else "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta"
+        output:
+            "{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned_contigs_list.txt"
+        shell:
+            "cat {input.bin_table} | cut -f1 | grep -v -F -w -f - {input.assembly} | grep \"^>\" | sed 's/^>//' > {output}"
+    
+    rule create_unbinned_fasta:
+        input:
+            unbinned_list="{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned_contigs_list.txt",
+            assembly="{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/scaffolds.fasta"
+            if config["ANALYSIS"] == "SCAFFOLDS" else "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/contigs.fasta"
+        output:
+            "{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned.fasta"
+        shell:
+            "seqtk subseq {input.assembly} {input.unbinned_list} > {output}"
+
+else:
+    rule skip_create_unbinned:
+        output:
+            "{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned.txt"
+        shell:
+            "echo 'CREATE_UNBINNED == F' > {output}"
 
 rule prokka_bins:
     input:
@@ -908,19 +1394,78 @@ rule diamond_bins:
     script:
         "Scripts/diamondProkkaBins.py"
 
+
+rule rename_Final_bins:
+    input:
+        bin_table="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+        if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+        if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+        if config["BINNING"] == "CONCOCT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/binTable.tsv"
+        if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_scaffolds2bin.txt"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/" if config["BINNING"] == "METABAT" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/" if config["BINNING"] == "MAXBIN" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/" if config["BINNING"] == "CONCOCT" else 
+        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/BinSanity-Final-bins/"  if config["BINNING"] == "BINSANITY" else
+        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/DasOut_DASTool_bins/", 
+        bin_ext="fa"  if config["BINNING"] == "METABAT" else
+        "fasta"  if config["BINNING"] == "MAXBIN" else
+        "fa" if config["BINNING"] == "CONCOCT" else
+        "fna" if config["BINNING"] == "BINSANITY" else
+        "fa",
+        smp="{sample}",
+        out_dir="{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/" 
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/new_names.txt"
+    shell:
+        "Scripts/renameFinalBins.sh {params.bin_folder}  {params.bin_ext} {params.smp} {params.out_dir} {output}"  
+
+rule coverage_contigs_final_bins:
+    input:
+        final_bins="{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/new_names.txt",
+        bwa="{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_depth.txt"
+    params:
+        bin_folder="{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/contig_coverage.txt"
+    shell:
+        "cat  {params.bin_folder}*.fna  | grep \"^>\" | sed 's/>// ; s/ /\t/g' | "
+        " awk -F\"\\t\" 'NR==FNR{{h[$2]=$1;next}}BEGIN{{OFS=\"\\t\"; FS=\"\\t\"}}{{if(h[$1]){{print h[$1],$3}}}}' "
+        "- {input.bwa} > {output}"
+
+rule summarize_final_bins:
+    input:
+        summary="{PROJECT}/runs/{run}/{sample}_data/binning/summary_abundance_coverage.tsv",
+        new_names="{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/new_names.txt"
+    params:
+        prc_folder="{PROJECT}/runs/{run}/{sample}_data/binning/"
+    output:
+        "{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins.summary.tsv"
+    shell:
+        "cat {input.new_names} |  "
+        "awk -F \"\\t\" 'FNR==NR{{ parts=split($2,n,\".\");name=n[1]; for(i=2;i<parts;i++){{name=name\".\"n[i]}}; "
+        "nparts=split($3,nn,\".\");nname=nn[1]; for(i=2;i<nparts;i++){{nname=nname\".\"nn[i]}}; h[$1name]=nname;next }} "
+        "BEGIN{{OFS=\"\\t\"}} "
+        "{{if(FNR==1){{print \"New_BinID\",$0}}else if(h[$1$2]){{print h[$1$2],$0}} }}' "
+        " - {input.summary} > {output}"
+
 rule report:
     input:
         "{PROJECT}/runs/{run}/{sample}_data/bwa-mem/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"_mapped_against_cross-assembly_sorted.flagstat",
-        #"{PROJECT}/runs/{run}/{sample}_data/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/prokka.log",
-        "{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
-        if config["BINNING"] == "METABAT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
-        if config["BINNING"] == "MAXBIN" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
-        if config["BINNING"] == "CONCOCT" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
-        if config["BINNING"] == "BINSANITY" else
-        "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log",
+        ##"{PROJECT}/runs/{run}/{sample}_data/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/prokka.log",
+        #"{PROJECT}/runs/{run}/{sample}_data/binning/metabat2/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
+        #if config["BINNING"] == "METABAT" else
+        #"{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
+        #if config["BINNING"] == "MAXBIN" else
+        #"{PROJECT}/runs/{run}/{sample}_data/binning/concoct/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
+        #if config["BINNING"] == "CONCOCT" else
+        #"{PROJECT}/runs/{run}/{sample}_data/binning/binsanity/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log"
+        #if config["BINNING"] == "BINSANITY" else
+        #"{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/diamond.log",
         #"{PROJECT}/runs/{run}/{sample}_data/binning/maxbin/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/maxbin.log",
         "{PROJECT}/runs/{run}/{sample}_data/taxonomy/kraken.taxonomy.report"
          if config["TAXONOMY"]["PROFILING"] == "KRAKEN" else
@@ -938,17 +1483,26 @@ rule report:
          "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/prodigal_"+config["ANALYSIS"]+"/genes.gff"
          if config["GENE_CALLING"]["TOOL"] == "PRODIGAL" else
          "{PROJECT}/runs/{run}/{sample}_data/assembly_"+config["ASSEMBLER"]+"/gene_calling.skip",
-         "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log"
+         "{PROJECT}/runs/{run}/{sample}_data/binning/das/"+config["ANALYSIS"]+"_"+config["ASSEMBLER"]+"/das.log",
         #"{PROJECT}/runs/{run}/{sample}_data/metabat2/prokka.out"
-        #"{PROJECT}/runs/{run}/{sample}_data/metabat2/bin/metabat2.log"
+        #"{PROJECT}/runs/{run}/{sample}_data/metabat2/bin/metabat2.log",
+         #"{PROJECT}/runs/{run}/{sample}_data/binning/checkM/summary.txt",
+         #"{PROJECT}/runs/{run}/{sample}_data/binning/gtdbtk/summary.txt",
+         "{PROJECT}/runs/{run}/{sample}_data/binning/summary.tsv",
+         "{PROJECT}/runs/{run}/{sample}_data/binning/summary_abundance.tsv",
+         "{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned.fasta"
+         if config["CREATE_UNBINNED"] == "T" else
+         "{PROJECT}/runs/{run}/{sample}_data/unbinned/unbinned.txt",
+         "{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins.summary.tsv",
+         "{PROJECT}/runs/{run}/{sample}_data/binning/FinalBins/contig_coverage.txt"
     output:
-        temp("{PROJECT}/runs/{run}/{sample}_data/report.html")
-    script:
-        "Scripts/report.py"
-rule tune_report:
-    input:
-        "{PROJECT}/runs/{run}/{sample}_data/report.html"
-    output:
-        "{PROJECT}/runs/{run}/{sample}_data/report_f.html"
-    script:
-        "Scripts/tuneReport.py"
+        temp("{PROJECT}/runs/{run}/{sample}_data/report_f.html")
+    shell:
+        "touch {output}"
+#rule tune_report:
+#    input:
+#        "{PROJECT}/runs/{run}/{sample}_data/report.html"
+#    output:
+#        "{PROJECT}/runs/{run}/{sample}_data/report_f.html"
+#    script:
+#        "Scripts/tuneReport.py"
