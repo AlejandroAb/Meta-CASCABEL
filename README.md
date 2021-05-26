@@ -2,7 +2,7 @@
 
 Snakemake pipeline for assembly and binning of metagenomics reads.
 
-**Current version:** 2.3
+**Current version:** 3.0
 
 The pipeline creates different output files which allow the user to explore the data and results in a simple way, as well as facilitate downstream analysis based on the generated output files.
 
@@ -69,7 +69,7 @@ At the end you should have a directory structure similar to the following:
 
 **Edit configuration file**
 
-+{color:blue}Project name+
+<ins>Project name</ins>
 
 ```yaml
 #------------------------------------------------------------------------------#
@@ -83,7 +83,7 @@ PROJECT: "test_metagenomes"
 
 If you use the init_script_new.sh for multiple samples, make sure to use the same project name here.
 
-+{color:blue}Samples+
+<ins>Samples</ins>
 
 ```yaml
 #------------------------------------------------------------------------------#
