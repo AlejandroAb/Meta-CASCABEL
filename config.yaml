@@ -536,13 +536,16 @@ das:
   db: "/opt/biolinux/DAS_Tool" #"/export/data/aabdala/utils/DAS_Tool/db"
   search_engine: diamond
   extra_params: "--duplicate_penalty 0.4 --megabin_penalty 0.4 "
+  metabat:
+    gtdbtk_analysis: "T"
+    checkm_analysis: "T"
   binsanity: 
     run: "T"
     gtdbtk_analysis: "T"
-    checkm_analysis: "F"
+    checkm_analysis: "T"
   concoct: 
    run: "T"
-   gtdbtk_analysis: "F"
+   gtdbtk_analysis: "T"
    checkm_analysis: "T"
   maxbin: 
     run: "T"
