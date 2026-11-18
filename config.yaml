@@ -29,7 +29,7 @@
 #=======================DESCRIPTION============================================#
 # The name of the project for which the pipe line will be executed.            #
 #------------------------------------------------------------------------------#
-PROJECT: ""
+PROJECT: "Small_metacascabel_test"
 
 #------------------------------------------------------------------------------#
 #                       RUN                                                    #
@@ -40,7 +40,7 @@ PROJECT: ""
 # The RUN variable can be set here or remain empty, in the latter case, the    #
 # user must assign this value via the command line --config RUN=User_run_name  #
 #------------------------------------------------------------------------------#
-RUN: ""
+RUN: "Cleanup_das"
 
 #------------------------------------------------------------------------------#
 #                       Description                                            #
@@ -58,7 +58,7 @@ description: ""
 # Same sample names used with input.txt script                                 #
 # Include all the names between quotes, and comma separated                    #
 #------------------------------------------------------------------------------#
-SAMPLES: [""]
+SAMPLES: ["NIOZ114"]
 
 #------------------------------------------------------------------------------#
 #                       INPUT FILES                                            #
@@ -77,7 +77,7 @@ SAMPLES: [""]
 #------------------------------------------------------------------------------#
 fw_reads: ""
 rv_reads: ""
-input_files: ""
+input_files: "input_test_set.txt"
 
 #------------------------------------------------------------------------------#
 #                       INPUT TYPE                                             #
@@ -139,8 +139,8 @@ remove_intermediate_output: "T"
 # Or do: sequali -h                                                            #
 #------------------------------------------------------------------------------#
 sequali:
-  onRawReads: "F"
-  onTrimmedReads: "F"
+  onRawReads: "T"
+  onTrimmedReads: "T"
   threads: 10
   extra_params: ""
 
@@ -219,7 +219,7 @@ trimm:
 # Not all assembly tools generate scaffolds, if you wan't to use scaffolds,    #
 # chose either SPADES or IDBA as assembly tool.                                #
 #------------------------------------------------------------------------------#
-ANALYSIS: ""
+ANALYSIS: "CONTIGS"
 
 #------------------------------------------------------------------------------#
 #                       Select assembly tool                                   #
@@ -235,7 +235,7 @@ ANALYSIS: ""
 # contigs               If ASSEMBLER = "ASSEMBLED" supply file pointing to     #
 #                       contigs/scaffolds                                      #
 #------------------------------------------------------------------------------#
-ASSEMBLER: ""
+ASSEMBLER: "SPADES"
 contigs: ""
 
 #------------------------------------------------------------------------------#
@@ -357,7 +357,7 @@ idba:
 # The original, unsplitted contig or scaffolds files will be renamed as:       #
 # contigs.complete.fasta or scaffolds.complete.fasta                           #
 #------------------------------------------------------------------------------#
-SPLIT_ASSEMBLY: "F"
+SPLIT_ASSEMBLY: "T"
 SPLIT_SIZE: 20000
 
 #------------------------------------------------------------------------------#
@@ -451,7 +451,7 @@ jgi_summ:
 #   tool, using the options below.                                             #
 # - When using DAS, it will always run Metabat2 as one of the binning tools    #
 #------------------------------------------------------------------------------#
-BINNING: ""
+BINNING: "DAS"
 
 #------------------------------------------------------------------------------#
 #                       DAS Tool                                               #
@@ -491,19 +491,19 @@ das:
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   binsanity: 
-    run: "F"
+    run: "T"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   concoct: 
-   run: "F"
+   run: "T"
    gtdbtk_analysis: "F"
    checkm_analysis: "F"
   maxbin: 
-    run: "F"
+    run: "T"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   semibin:
-    run: "F"
+    run: "T"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
 
@@ -670,7 +670,7 @@ semibin:
 # CREATE_UNBINNED       'T' obtain all unbinned contigs/scaffolds              #
 #                       'F' Don't obtain unbinned contigs/scaffolds            #
 #------------------------------------------------------------------------------#
-CREATE_UNBINNED: "F"
+CREATE_UNBINNED: "T"
 
 #------------------------------------------------------------------------------#
 #                       checkM lineage_wf                                      #

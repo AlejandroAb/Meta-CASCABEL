@@ -66,8 +66,8 @@ For example:
 ```yaml
 SAMPLES: ["NIOZ118"]
 
-fw_reads: "/export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ118_R1.fastq.gz"
-rv_reads: "/export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ118_R2.fastq.gz"
+fw_reads: "/export../NIOZ118_R1.fastq.gz"
+rv_reads: "/export/../NIOZ118_R2.fastq.gz"
 input_files: ""
 ```
 
@@ -93,9 +93,9 @@ input_files: "input.txt"
 
 An example of input.txt:
 ```
-NIOZ114 /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ114_R1.fastq.gz   /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ114_R2.fastq.gz
-NIOZ118 /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ118_R1.fastq.gz   /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ118_R2.fastq.gz
-NIOZ130 /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ130_R1.fastq.gz   /export/lv4/projects/workshop_2023/S10_Assembly/rawdata_1/NIOZ130_R2.fastq.gz
+NIOZ114 /export/../NIOZ114_R1.fastq.gz   /export/../NIOZ114_R2.fastq.gz
+NIOZ118 /export/../NIOZ118_R1.fastq.gz   /export/../NIOZ118_R2.fastq.gz
+NIOZ130 /export/../NIOZ130_R1.fastq.gz   /export/../NIOZ130_R2.fastq.gz
 ```
 
 **Run Metacascabel on the HPC (i.e. Laplace)**
@@ -112,7 +112,7 @@ If you open hpc.sh you can set -c (number of cpu's) according to your needs and 
 > 
 >  conda activate snakemake_v7.14.2
 > 
->  export GTDBTK_DATA_PATH="/export/lv13/databases/gtdb/release232"
+>  export GTDBTK_DATA_PATH="/export/../release232"
 
 *dry run*
 
