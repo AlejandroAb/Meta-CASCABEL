@@ -19,7 +19,9 @@ snakemake --configfile config.yaml -c 100 --use-conda --conda-frontend conda
 # Generate report file, 'report.hpc.zip' can be changed to any name you want
 snakemake --configfile config.yaml --report report.hpc.zip
 
-# These lines remove all bam and depth files at the end of the run
-# If you want to keep these, comment them out
+# These lines remove all bam and depth files at the end of the run:
 rm -rf "{PROJECT}/runs/{run}/{sample}_data/bwa-mem/*.bam"
 rm -rf "{PROJECT}/runs/{run}/{sample}_data/bwa-mem/*.txt"
+# If you want to keep these, comment them out by adding '#'' at the beginning of the line
+# Also know that at the end of the run a file 'contig_coverage.txt' is created per sample in the directory: '{SAMPLE}_data/binning/FinalBins'
+# Which contains the avarage depth of all contigs within the final bins
