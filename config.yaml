@@ -40,7 +40,7 @@ PROJECT: "Small_metacascabel_test"
 # The RUN variable can be set here or remain empty, in the latter case, the    #
 # user must assign this value via the command line --config RUN=User_run_name  #
 #------------------------------------------------------------------------------#
-RUN: "Cleanup_das"
+RUN: "Cleanup_spades"
 
 #------------------------------------------------------------------------------#
 #                       Description                                            #

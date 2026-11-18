@@ -39,6 +39,25 @@ def remove_files(file_path, log):
     """
     Nog even terugkomen op de K/ situationne
     """
+
+    # SPADES
+log.write("Starting SPADES cleanup\n")
+
+spades_dir = os.path.join(file_path, "assembly_SPADES")
+
+spades_keep_list = ["*.benchmark","*.fasta.gz","*.txt","*.log","K*/final_contigs.fasta","K*/scaffolds.fasta"]
+for file in glob.glob(os.path.join(spades_dir, "**", "*"), recursive=True):
+    relative_path = os.path.relpath(file, spades_dir)
+    if relative_path == "quast" or relative_path.startswith("quast" + os.sep):
+        continue
+    if os.path.isdir(file):
+        continue
+    keep = any(fnmatch.fnmatch(relative_path, pattern)for pattern in spades_keep_list)
+    if not keep:
+        remove_file(file, log)
+
+
+    """
     spades_dir = os.path.join(file_path, "assembly_SPADES")
     spades_keep_list = ["*.benchmark","*.fasta.gz","*.txt","*.log","quast","K*/final.contigs.fasta","K*/scaffolds.fasta"]
     for file in glob.glob(os.path.join(spades_dir, "**", "*"),recursive=True):
@@ -48,6 +67,7 @@ def remove_files(file_path, log):
         keep = any(fnmatch.fnmatch(relative_path, pattern)for pattern in spades_keep_list)
         if not keep:
             remove_file(file, log)
+    """
 
     # IDBA
     log.write("Starting IDBA cleanup\n")
@@ -58,9 +78,6 @@ def remove_files(file_path, log):
         keep = any(fnmatch.fnmatch(relative_path, pattern) for pattern in idba_keep_list)
         if not keep:
             remove_file(file, log)
-
-    # bwa-mem
-    # Nog uitzoeken
 
     # Binning
     binning = snakemake.config["BINNING"]
@@ -90,12 +107,11 @@ def remove_files(file_path, log):
     else:
         remove_file(concoct_dir, log)
 
-
     # MaxBin
     log.write("Starting MAXBIN cleanup\n")
     maxbin_dir = os.path.join(file_path, "binning", "maxbin")
     if binning == "MAXBIN" or (binning == "DAS" and snakemake.config["das"]["maxbin"]["run"] == "T"):
-        maxbin_keep_list = ["binTable.tsv","*.fasta.gz","*.log","bin.abundance","bin.summary",]
+        maxbin_keep_list = ["binTable.tsv","*.fasta.gz","*.log","bin.summary",]
         for file in glob.glob(os.path.join(maxbin_dir, "*", "*")):
             if not os.path.isfile(file):
                 continue
