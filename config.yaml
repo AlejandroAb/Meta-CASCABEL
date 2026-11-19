@@ -29,7 +29,7 @@
 #=======================DESCRIPTION============================================#
 # The name of the project for which the pipe line will be executed.            #
 #------------------------------------------------------------------------------#
-PROJECT: "Small_metacascabel_test"
+PROJECT: ""
 
 #------------------------------------------------------------------------------#
 #                       RUN                                                    #
@@ -40,7 +40,7 @@ PROJECT: "Small_metacascabel_test"
 # The RUN variable can be set here or remain empty, in the latter case, the    #
 # user must assign this value via the command line --config RUN=User_run_name  #
 #------------------------------------------------------------------------------#
-RUN: "cleanup_spades"
+RUN: ""
 
 #------------------------------------------------------------------------------#
 #                       Description                                            #
@@ -58,7 +58,7 @@ description: ""
 # Same sample names used with input.txt script                                 #
 # Include all the names between quotes, and comma separated                    #
 #------------------------------------------------------------------------------#
-SAMPLES: ["NIOZ114"]
+SAMPLES: [""]
 
 #------------------------------------------------------------------------------#
 #                       INPUT FILES                                            #
@@ -77,7 +77,7 @@ SAMPLES: ["NIOZ114"]
 #------------------------------------------------------------------------------#
 fw_reads: ""
 rv_reads: ""
-input_files: "input_test_set.txt"
+input_files: ""
 
 #------------------------------------------------------------------------------#
 #                       INPUT TYPE                                             #
@@ -219,7 +219,7 @@ trimm:
 # Not all assembly tools generate scaffolds, if you wan't to use scaffolds,    #
 # chose either SPADES or IDBA as assembly tool.                                #
 #------------------------------------------------------------------------------#
-ANALYSIS: "CONTIGS"
+ANALYSIS: ""
 
 #------------------------------------------------------------------------------#
 #                       Select assembly tool                                   #
@@ -235,7 +235,7 @@ ANALYSIS: "CONTIGS"
 # contigs               If ASSEMBLER = "ASSEMBLED" supply file pointing to     #
 #                       contigs/scaffolds                                      #
 #------------------------------------------------------------------------------#
-ASSEMBLER: "SPADES"
+ASSEMBLER: ""
 contigs: ""
 
 #------------------------------------------------------------------------------#
@@ -451,7 +451,7 @@ jgi_summ:
 #   tool, using the options below.                                             #
 # - When using DAS, it will always run Metabat2 as one of the binning tools    #
 #------------------------------------------------------------------------------#
-BINNING: "METABAT"
+BINNING: ""
 
 #------------------------------------------------------------------------------#
 #                       DAS Tool                                               #
