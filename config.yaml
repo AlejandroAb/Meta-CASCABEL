@@ -40,7 +40,7 @@ PROJECT: "Small_metacascabel_test"
 # The RUN variable can be set here or remain empty, in the latter case, the    #
 # user must assign this value via the command line --config RUN=User_run_name  #
 #------------------------------------------------------------------------------#
-RUN: "Cleanup_spades"
+RUN: "cleanup_spades"
 
 #------------------------------------------------------------------------------#
 #                       Description                                            #
@@ -139,8 +139,8 @@ remove_intermediate_output: "T"
 # Or do: sequali -h                                                            #
 #------------------------------------------------------------------------------#
 sequali:
-  onRawReads: "T"
-  onTrimmedReads: "T"
+  onRawReads: "F"
+  onTrimmedReads: "F"
   threads: 10
   extra_params: ""
 
@@ -332,7 +332,7 @@ megahit:
 idba:
   mink: "20"
   maxk: "100"
-  step: "10"
+  step: "20"
   threads: "35"
   extra_params: ""
 
@@ -357,7 +357,7 @@ idba:
 # The original, unsplitted contig or scaffolds files will be renamed as:       #
 # contigs.complete.fasta or scaffolds.complete.fasta                           #
 #------------------------------------------------------------------------------#
-SPLIT_ASSEMBLY: "T"
+SPLIT_ASSEMBLY: "F"
 SPLIT_SIZE: 20000
 
 #------------------------------------------------------------------------------#
@@ -451,7 +451,7 @@ jgi_summ:
 #   tool, using the options below.                                             #
 # - When using DAS, it will always run Metabat2 as one of the binning tools    #
 #------------------------------------------------------------------------------#
-BINNING: "DAS"
+BINNING: "METABAT"
 
 #------------------------------------------------------------------------------#
 #                       DAS Tool                                               #
@@ -491,19 +491,19 @@ das:
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   binsanity: 
-    run: "T"
+    run: "F"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   concoct: 
-   run: "T"
+   run: "F"
    gtdbtk_analysis: "F"
    checkm_analysis: "F"
   maxbin: 
-    run: "T"
+    run: "F"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
   semibin:
-    run: "T"
+    run: "F"
     gtdbtk_analysis: "F"
     checkm_analysis: "F"
 
@@ -670,7 +670,7 @@ semibin:
 # CREATE_UNBINNED       'T' obtain all unbinned contigs/scaffolds              #
 #                       'F' Don't obtain unbinned contigs/scaffolds            #
 #------------------------------------------------------------------------------#
-CREATE_UNBINNED: "T"
+CREATE_UNBINNED: "F"
 
 #------------------------------------------------------------------------------#
 #                       checkM lineage_wf                                      #

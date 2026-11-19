@@ -14,7 +14,7 @@ fi
 for file in $1*.$2; do
   bin=$(echo $file | awk -F"/" '{print $NF}' | cut -f1,2 -d"."); 
   method=$(echo $file | awk -F"/" '{print $6}');
-  grep ">" $file | cut -f2 -d">" | grep -F -w -f - $3 | awk -v bin="$bin" -v m="$method" '{totSize+=$2; totCvg+=$3;}END{print m"\t"bin"\t"NR"\t"totSize"\t"totCvg/NR}' | sort -gk4 >> $4.tmp;
+  grep ">" $file | cut -f2 -d">" | cut -f1 -d" " | grep -F -w -f - $3 | awk -v bin="$bin" -v m="$method" '{totSize+=$2; totCvg+=$3;}END{if(NR>0) print m"\t"bin"\t"NR"\t"totSize"\t"totCvg/NR}' | sort -gk4 >> "$4.tmp";  
 done
 
 echo -e "method\tbin\tnum_contigs\ttot_length\tavg_coverage" | cat -  $4.tmp > $4
